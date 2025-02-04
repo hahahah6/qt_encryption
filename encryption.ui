@@ -38,7 +38,7 @@
     <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p align=&quot;center&quot;&gt;&lt;span style=&quot; font-size:16pt;&quot;&gt;公钥加密&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
    </property>
   </widget>
-  <widget class="QLineEdit" name="lineEdit">
+  <widget class="QLineEdit" name="lineEdit_public">
    <property name="geometry">
     <rect>
      <x>70</x>
@@ -48,7 +48,7 @@
     </rect>
    </property>
   </widget>
-  <widget class="QPushButton" name="pushButton">
+  <widget class="QPushButton" name="pushButton_public">
    <property name="geometry">
     <rect>
      <x>449</x>
@@ -61,7 +61,7 @@
     <string>选择公钥</string>
    </property>
   </widget>
-  <widget class="QLineEdit" name="lineEdit_2">
+  <widget class="QLineEdit" name="lineEdit_file">
    <property name="geometry">
     <rect>
      <x>70</x>
@@ -71,7 +71,7 @@
     </rect>
    </property>
   </widget>
-  <widget class="QPushButton" name="pushButton_2">
+  <widget class="QPushButton" name="pushButton_file">
    <property name="geometry">
     <rect>
      <x>450</x>
@@ -84,7 +84,7 @@
     <string>选择文件</string>
    </property>
   </widget>
-  <widget class="QPushButton" name="pushButton_3">
+  <widget class="QPushButton" name="pushButton_en">
    <property name="geometry">
     <rect>
      <x>180</x>

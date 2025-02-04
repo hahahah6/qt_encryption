@@ -102,7 +102,7 @@ void miyao::on_pushButton_choose_clicked()
     QString folderPath = QFileDialog::getExistingDirectory(
         this,            // 父窗口指针（这里为 nullptr）
         "选择文件夹",       // 对话框标题
-        QDir::homePath()    // 默认路径（这里为用户的家目录）
+        ""    // 默认路径（这里为用户的家目录）
         );
 
     if (!folderPath.isEmpty()) {
@@ -188,7 +188,7 @@ void miyao::on_pushButton_choose_public_clicked()
     QString fileName = QFileDialog::getOpenFileName(
         this,           // 父窗口指针，通常为当前窗口指针
         "选择私钥",         // 对话框标题
-        QDir::homePath(),      // 初始目录路径
+        "",      // 初始目录路径
         "密钥文件 (*.pem *.key *.cer *.crt *.pfx);;所有文件 (*.*)"
         );
 

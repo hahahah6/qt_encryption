@@ -25,7 +25,7 @@
   <property name="windowTitle">
    <string>Form</string>
   </property>
-  <widget class="QPushButton" name="pushButton">
+  <widget class="QPushButton" name="pushButton_private">
    <property name="geometry">
     <rect>
      <x>459</x>
@@ -38,7 +38,7 @@
     <string>选择私钥</string>
    </property>
   </widget>
-  <widget class="QLineEdit" name="lineEdit">
+  <widget class="QLineEdit" name="lineEdit_private">
    <property name="geometry">
     <rect>
      <x>80</x>
@@ -79,7 +79,7 @@
     <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p align=&quot;center&quot;&gt;&lt;span style=&quot; font-size:16pt;&quot;&gt;私钥解密&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
    </property>
   </widget>
-  <widget class="QPushButton" name="pushButton_2">
+  <widget class="QPushButton" name="pushButton_file">
    <property name="geometry">
     <rect>
      <x>460</x>
@@ -92,7 +92,7 @@
     <string>选择加密文件</string>
    </property>
   </widget>
-  <widget class="QLineEdit" name="lineEdit_2">
+  <widget class="QLineEdit" name="lineEdit_file">
    <property name="geometry">
     <rect>
      <x>80</x>

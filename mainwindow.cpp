@@ -25,6 +25,10 @@ MainWindow::MainWindow(QWidget *parent)
     connect(ui->action_mi,&QAction::triggered,this,&MainWindow::go_back_secret_key_page);
     connect(ui->action_jie,&QAction::triggered,this,&MainWindow::go_back_decode_page);
     connect(ui->action_jia,&QAction::triggered,this,&MainWindow::go_back_encryption);
+
+
+    connect(mM,&miyao::public_secret_key_path,mE,&jiami::public_secret_key_path_slot);
+    connect(mM,&miyao::private_secret_key_path,mD,&decode::private_secret_key_path_slot);
 }
 
 MainWindow::~MainWindow()
