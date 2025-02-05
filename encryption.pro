@@ -43,3 +43,6 @@ DEPENDPATH += $$PWD/../../qt/Tools/OpenSSLv3/Win_x64/include
 win32:CONFIG(release, debug|release): LIBS += -L$$PWD/../../qt/Tools/OpenSSLv3/Win_x64/release/ -llibssl
 else:win32:CONFIG(debug, debug|release): LIBS += -L$$PWD/../../qt/Tools/OpenSSLv3/Win_x64/debug/ -llibssl
 
+RESOURCES += \
+    iconfile.qrc
+

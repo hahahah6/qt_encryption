@@ -14,6 +14,8 @@ MainWindow::MainWindow(QWidget *parent)
     , ui(new Ui::MainWindow)
 {
     ui->setupUi(this);
+    this->setWindowTitle("encryption");
+    this->setWindowIcon(QIcon(":/favicon.ico"));
     mM = new miyao;
     mD = new decode;
     mE = new jiami;
