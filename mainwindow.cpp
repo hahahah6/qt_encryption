@@ -27,8 +27,8 @@ MainWindow::MainWindow(QWidget *parent)
 
 MainWindow::~MainWindow()
 {
-    // Qt's parent-child relationship will handle widget deletion
-    // mM, mD, mE are children of stackedWidget and will be deleted automatically
+    // mM, mD, mE are owned by stackedWidget (via addWidget) and will be deleted
+    // when ui is deleted, which contains the stackedWidget
     delete ui;
 }
 
