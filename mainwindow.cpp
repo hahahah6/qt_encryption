@@ -1,14 +1,6 @@
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
 
-#include <openssl/rsa.h>
-#include <openssl/pem.h>
-#include <openssl/aes.h>
-#include <openssl/rand.h>
-#include <openssl/err.h>
-
-
-
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
     , ui(new Ui::MainWindow)
@@ -35,6 +27,8 @@ MainWindow::MainWindow(QWidget *parent)
 
 MainWindow::~MainWindow()
 {
+    // Qt's parent-child relationship will handle widget deletion
+    // mM, mD, mE are children of stackedWidget and will be deleted automatically
     delete ui;
 }
 
