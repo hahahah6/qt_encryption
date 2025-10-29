@@ -9,6 +9,7 @@
 #include <QFile>
 #include <QIODevice>
 #include <QDesktopServices>
+#include <openssl/crypto.h>
 miyao::miyao(QWidget *parent)
     : QWidget(parent)
     , ui(new Ui::miyao)
@@ -26,7 +27,7 @@ void miyao::on_pushButton_generate_clicked()
     QString path = ui->lineEdit_save_path->text();
     if(path.isEmpty())
     {
-        QMessageBox::warning(this, "警告", "目录空");
+        QMessageBox::warning(this, "警告", "请选择保存目录");
         return;
     }
     QString folderPath = path + "/keypair"; // 使用正斜杠作为路径分隔符
@@ -117,11 +118,21 @@ bool miyao::createRSA(const int num, const QString &folderPath) {
     RSA* rsa = RSA_new();
     BIGNUM* bn = BN_new();
 
+    if (!rsa || !bn) {
+        if (rsa) RSA_free(rsa);
+        if (bn) BN_free(bn);
+        return false;
+    }
+
     if (BN_set_word(bn, RSA_F4) != 1) {
-        return false;  // use boolean values for return
+        RSA_free(rsa);
+        BN_free(bn);
+        return false;
     }
 
     if (RSA_generate_key_ex(rsa, num, bn, nullptr) != 1) {
+        RSA_free(rsa);
+        BN_free(bn);
         return false;
     }
 
@@ -129,17 +140,17 @@ bool miyao::createRSA(const int num, const QString &folderPath) {
     QString privateKeyFilename = folderPath + "/private.pem";
     QFile privateKeyFile(privateKeyFilename);
     if (!privateKeyFile.open(QIODevice::WriteOnly)) {
+        RSA_free(rsa);
+        BN_free(bn);
         return false;
     }
-
-
-
-
 
     // Convert file descriptor to FILE* using fdopen
     FILE* privateKeyFileHandle = fdopen(privateKeyFile.handle(), "wb");
     if (privateKeyFileHandle == nullptr) {
         privateKeyFile.close();
+        RSA_free(rsa);
+        BN_free(bn);
         return false;
     }
 
@@ -147,6 +158,8 @@ bool miyao::createRSA(const int num, const QString &folderPath) {
     if (PEM_write_RSAPrivateKey(privateKeyFileHandle, rsa, nullptr, nullptr, 0, nullptr, nullptr) != 1) {
         fclose(privateKeyFileHandle);
         privateKeyFile.close();
+        RSA_free(rsa);
+        BN_free(bn);
         return false;
     }
 
@@ -157,6 +170,8 @@ bool miyao::createRSA(const int num, const QString &folderPath) {
     QString publicKeyFilename = folderPath + "/public.pem";
     QFile publicKeyFile(publicKeyFilename);
     if (!publicKeyFile.open(QIODevice::WriteOnly)) {
+        RSA_free(rsa);
+        BN_free(bn);
         return false;
     }
 
@@ -164,6 +179,8 @@ bool miyao::createRSA(const int num, const QString &folderPath) {
     FILE* publicKeyFileHandle = fdopen(publicKeyFile.handle(), "wb");
     if (publicKeyFileHandle == nullptr) {
         publicKeyFile.close();
+        RSA_free(rsa);
+        BN_free(bn);
         return false;
     }
 
@@ -171,6 +188,8 @@ bool miyao::createRSA(const int num, const QString &folderPath) {
     if (PEM_write_RSA_PUBKEY(publicKeyFileHandle, rsa) != 1) {
         fclose(publicKeyFileHandle);
         publicKeyFile.close();
+        RSA_free(rsa);
+        BN_free(bn);
         return false;
     }
 
@@ -178,6 +197,7 @@ bool miyao::createRSA(const int num, const QString &folderPath) {
     publicKeyFile.close();
     emit public_secret_key_path(publicKeyFilename);
 
+    // Clean up
     RSA_free(rsa);
     BN_free(bn);
     return true;
@@ -283,14 +303,24 @@ void miyao::on_pushButton_genrate_public_clicked()
 {
     QString privateFilePath = ui->lineEdit_choose_public->text();
 
+    if (privateFilePath.isEmpty()) {
+        QMessageBox::warning(this, "警告", "请选择私钥文件");
+        return;
+    }
+
     RSA* privateFile = this->loadPrivateKey(privateFilePath);
+    if (!privateFile) {
+        QMessageBox::critical(this, "错误", "无法加载私钥文件");
+        return;
+    }
+
     QFileInfo fileInfo(privateFilePath);
     QString pathWithoutFileName = fileInfo.path();
-    if(this->generatePublicKey(privateFile,pathWithoutFileName))
+    if(this->generatePublicKey(privateFile, pathWithoutFileName))
     {
-
+        RSA_free(privateFile);
         QMessageBox::StandardButton reply_success;
-        reply_success = QMessageBox::question(this, "打开", "密钥对生成成功,是否打开目录",
+        reply_success = QMessageBox::question(this, "打开", "公钥生成成功，是否打开目录",
                                               QMessageBox::Yes | QMessageBox::No);
         if(reply_success == QMessageBox::Yes)
         {
@@ -299,8 +329,9 @@ void miyao::on_pushButton_genrate_public_clicked()
         }
 
     } else {
+        RSA_free(privateFile);
         // 公钥生成失败，显示错误消息
-        QMessageBox::critical(this, "Error", "Failed to generate public key.");
+        QMessageBox::critical(this, "错误", "公钥生成失败");
     }
 
 

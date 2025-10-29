@@ -13,6 +13,7 @@
 #include <openssl/rsa.h>
 #include <openssl/pem.h>
 #include <openssl/aes.h>
+#include <openssl/crypto.h>
 decode::decode(QWidget *parent)
     : QWidget(parent)
     , ui(new Ui::decode)
@@ -64,6 +65,12 @@ void decode::on_pushButton_decode_clicked()
     QString privateKeyFilename = ui->lineEdit_private->text();
     QString encryptedFile = ui->lineEdit_file->text();
 
+    // Validate input
+    if (privateKeyFilename.isEmpty() || encryptedFile.isEmpty()) {
+        QMessageBox::critical(this, "输入错误", "请选择私钥和加密文件");
+        return;
+    }
+
     // 加载私钥
     RSA* mPrivateKey = loadPrivateKey(privateKeyFilename);
     if (mPrivateKey == nullptr) {
@@ -74,61 +81,58 @@ void decode::on_pushButton_decode_clicked()
     // 打开加密文件
     QFile file(encryptedFile);
     if (!file.open(QIODevice::ReadOnly)) {
+        RSA_free(mPrivateKey);
         QMessageBox::critical(this, "文件读取", "无法读取加密文件");
         return;
     }
 
     int ivLen;
-    file.read((char*)&ivLen, sizeof(ivLen));  // 读取 IV 长度
-    // qDebug() << "读取 IV 长度: " << ivLen;
+    file.read((char*)&ivLen, sizeof(ivLen));
 
     // 检查 IV 长度是否有效
     if (ivLen != AES_BLOCK_SIZE) {
+        file.close();
+        RSA_free(mPrivateKey);
         QMessageBox::critical(this, "错误", "IV 长度无效");
         return;
     }
 
-    // 动态分配内存读取 IV 数据
+    // 读取 IV 数据
     unsigned char iv[AES_BLOCK_SIZE];
-    file.read((char*)iv, ivLen);  // 根据读取的长度读取 IV 数据
-
-    // // 打印读取的 IV 数据
-    // qDebug() << "读取的 IV 数据: ";
-    // for (int i = 0; i < AES_BLOCK_SIZE; i++) {
-    //     qDebug() << QString("%1 ").arg(iv[i], 2, 16, QLatin1Char('0'));  // 打印 IV 数据
-    // }
+    file.read((char*)iv, ivLen);
 
     // 读取 AES 密钥的长度
     int aesKeyLength;
     file.read((char*)&aesKeyLength, sizeof(aesKeyLength));
-    // qDebug() << "读取 AES 密钥长度: " << aesKeyLength;
+
+    // Validate key length to prevent buffer overflow
+    if (aesKeyLength <= 0 || aesKeyLength > 1024) {
+        file.close();
+        RSA_free(mPrivateKey);
+        OPENSSL_cleanse(iv, sizeof(iv));
+        QMessageBox::critical(this, "错误", "无效的 AES 密钥长度");
+        return;
+    }
 
     // 读取加密的 AES 密钥
-    unsigned char encryptedAesKey[aesKeyLength];
+    unsigned char* encryptedAesKey = new unsigned char[aesKeyLength];
     file.read((char*)encryptedAesKey, aesKeyLength);
-
-    // // 打印读取的 AES 密钥
-    // qDebug() << "读取加密的 AES 密钥: ";
-    // for (int i = 0; i < aesKeyLength; i++) {
-    //     qDebug() << QString("%1 ").arg(encryptedAesKey[i], 2, 16, QLatin1Char('0'));
-    // }
 
     // 解密 AES 密钥
     unsigned char aesKey[32];  // 32 字节 = 256 位
     if (!decryptAESKey(mPrivateKey, encryptedAesKey, aesKeyLength, aesKey)) {
+        delete[] encryptedAesKey;
+        file.close();
+        RSA_free(mPrivateKey);
+        OPENSSL_cleanse(iv, sizeof(iv));
+        OPENSSL_cleanse(aesKey, sizeof(aesKey));
         QMessageBox::critical(this, "错误", "私钥解密 AES 密钥失败");
         return;
     }
+    delete[] encryptedAesKey;
     // 读取加密的文件数据
     QByteArray encryptedData = file.readAll();
     file.close();
-
-    // // 打印读取的加密文件数据
-    // qDebug() << "读取加密的文件数据: ";
-    // for (int i = 0; i < encryptedData.size(); i++) {
-    //     qDebug() << QString("%1 ").arg(encryptedData[i], 2, 16, QLatin1Char('0'));
-    // }
-
 
     // 解密文件数据
     QByteArray decryptedData;
@@ -136,6 +140,9 @@ void decode::on_pushButton_decode_clicked()
 
     AES_KEY aesDecryptKey;
     if (AES_set_decrypt_key(aesKey, 256, &aesDecryptKey) < 0) {
+        RSA_free(mPrivateKey);
+        OPENSSL_cleanse(aesKey, sizeof(aesKey));
+        OPENSSL_cleanse(iv, sizeof(iv));
         QMessageBox::critical(this, "错误", "AES 解密密钥设置失败");
         return;
     }
@@ -153,6 +160,10 @@ void decode::on_pushButton_decode_clicked()
 
     // 检查填充是否有效
     if (padding < 1 || padding > AES_BLOCK_SIZE) {
+        RSA_free(mPrivateKey);
+        OPENSSL_cleanse(aesKey, sizeof(aesKey));
+        OPENSSL_cleanse(iv, sizeof(iv));
+        OPENSSL_cleanse(&aesDecryptKey, sizeof(aesDecryptKey));
         QMessageBox::critical(this, "错误", "无效的填充字节");
         return;
     }
@@ -160,6 +171,10 @@ void decode::on_pushButton_decode_clicked()
     // 检查填充字节是否正确
     for (int i = decryptedData.size() - padding; i < decryptedData.size(); ++i) {
         if (static_cast<unsigned char>(decryptedData[i]) != padding) {
+            RSA_free(mPrivateKey);
+            OPENSSL_cleanse(aesKey, sizeof(aesKey));
+            OPENSSL_cleanse(iv, sizeof(iv));
+            OPENSSL_cleanse(&aesDecryptKey, sizeof(aesDecryptKey));
             QMessageBox::critical(this, "错误", "填充字节不匹配");
             return;
         }
@@ -168,32 +183,31 @@ void decode::on_pushButton_decode_clicked()
     // 移除填充
     decryptedData.chop(padding);
 
-
-
-
-    // qDebug() << "解密后的文件内容 (十六进制): ";
-    // for (int i = 0; i < decryptedData.size(); ++i) {
-    //     // 通过'0x'标识输出十六进制
-    //     qDebug() << "0x" + QString::number(static_cast<unsigned char>(decryptedData[i]), 16).toUpper();
-    // }
-
     // 保存解密后的文件
     QString decryptedFile = encryptedFile;
     if (decryptedFile.endsWith(".enc")) {
         decryptedFile.chop(4);  // 去掉 ".enc" 后缀
     }
 
-    // qDebug() << decryptedFile;
-
     // 创建解密后的文件并写入数据
     QFile decryptedFileOut(decryptedFile);
     if (!decryptedFileOut.open(QIODevice::WriteOnly)) {
+        RSA_free(mPrivateKey);
+        OPENSSL_cleanse(aesKey, sizeof(aesKey));
+        OPENSSL_cleanse(iv, sizeof(iv));
+        OPENSSL_cleanse(&aesDecryptKey, sizeof(aesDecryptKey));
         QMessageBox::critical(this, "错误", "无法保存解密文件");
         return;
     }
 
     decryptedFileOut.write(decryptedData);
     decryptedFileOut.close();
+
+    // Clean up sensitive data and resources
+    RSA_free(mPrivateKey);
+    OPENSSL_cleanse(aesKey, sizeof(aesKey));
+    OPENSSL_cleanse(iv, sizeof(iv));
+    OPENSSL_cleanse(&aesDecryptKey, sizeof(aesDecryptKey));
 
     // 提示成功
     QMessageBox::information(this, "成功", "文件解密成功！");
