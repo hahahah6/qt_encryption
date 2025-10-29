@@ -1,14 +1,6 @@
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
 
-#include <openssl/rsa.h>
-#include <openssl/pem.h>
-#include <openssl/aes.h>
-#include <openssl/rand.h>
-#include <openssl/err.h>
-
-
-
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
     , ui(new Ui::MainWindow)
@@ -35,6 +27,8 @@ MainWindow::MainWindow(QWidget *parent)
 
 MainWindow::~MainWindow()
 {
+    // mM, mD, mE are owned by stackedWidget (via addWidget) and will be deleted
+    // when ui is deleted, which contains the stackedWidget
     delete ui;
 }
 

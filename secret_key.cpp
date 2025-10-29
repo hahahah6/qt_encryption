@@ -9,6 +9,7 @@
 #include <QFile>
 #include <QIODevice>
 #include <QDesktopServices>
+#include <openssl/crypto.h>
 miyao::miyao(QWidget *parent)
     : QWidget(parent)
     , ui(new Ui::miyao)
@@ -26,7 +27,7 @@ void miyao::on_pushButton_generate_clicked()
     QString path = ui->lineEdit_save_path->text();
     if(path.isEmpty())
     {
-        QMessageBox::warning(this, "警告", "目录空");
+        QMessageBox::warning(this, "警告", "请选择保存目录");
         return;
     }
     QString folderPath = path + "/keypair"; // 使用正斜杠作为路径分隔符
@@ -117,67 +118,108 @@ bool miyao::createRSA(const int num, const QString &folderPath) {
     RSA* rsa = RSA_new();
     BIGNUM* bn = BN_new();
 
+    if (!rsa || !bn) {
+        if (rsa) RSA_free(rsa);
+        if (bn) BN_free(bn);
+        return false;
+    }
+
     if (BN_set_word(bn, RSA_F4) != 1) {
-        return false;  // use boolean values for return
+        RSA_free(rsa);
+        BN_free(bn);
+        return false;
     }
 
     if (RSA_generate_key_ex(rsa, num, bn, nullptr) != 1) {
+        RSA_free(rsa);
+        BN_free(bn);
         return false;
     }
 
     // 保存私钥
     QString privateKeyFilename = folderPath + "/private.pem";
+    
+    // Use BIO to write private key to memory
+    BIO* privateBio = BIO_new(BIO_s_mem());
+    if (!privateBio) {
+        RSA_free(rsa);
+        BN_free(bn);
+        return false;
+    }
+
+    if (PEM_write_bio_RSAPrivateKey(privateBio, rsa, nullptr, nullptr, 0, nullptr, nullptr) != 1) {
+        BIO_free(privateBio);
+        RSA_free(rsa);
+        BN_free(bn);
+        return false;
+    }
+
+    // Get the private key data
+    char* privateKeyData;
+    long privateKeyLen = BIO_get_mem_data(privateBio, &privateKeyData);
+
     QFile privateKeyFile(privateKeyFilename);
     if (!privateKeyFile.open(QIODevice::WriteOnly)) {
+        BIO_free(privateBio);
+        RSA_free(rsa);
+        BN_free(bn);
         return false;
     }
 
-
-
-
-
-    // Convert file descriptor to FILE* using fdopen
-    FILE* privateKeyFileHandle = fdopen(privateKeyFile.handle(), "wb");
-    if (privateKeyFileHandle == nullptr) {
+    if (privateKeyFile.write(privateKeyData, privateKeyLen) != privateKeyLen) {
         privateKeyFile.close();
+        BIO_free(privateBio);
+        RSA_free(rsa);
+        BN_free(bn);
         return false;
     }
 
-    // Write the private key to the file
-    if (PEM_write_RSAPrivateKey(privateKeyFileHandle, rsa, nullptr, nullptr, 0, nullptr, nullptr) != 1) {
-        fclose(privateKeyFileHandle);
-        privateKeyFile.close();
-        return false;
-    }
-
-    fclose(privateKeyFileHandle);
     privateKeyFile.close();
+    BIO_free(privateBio);
     emit private_secret_key_path(privateKeyFilename);
     // 保存公钥
     QString publicKeyFilename = folderPath + "/public.pem";
+
+    // Use BIO to write public key to memory
+    BIO* publicBio = BIO_new(BIO_s_mem());
+    if (!publicBio) {
+        RSA_free(rsa);
+        BN_free(bn);
+        return false;
+    }
+
+    if (PEM_write_bio_RSA_PUBKEY(publicBio, rsa) != 1) {
+        BIO_free(publicBio);
+        RSA_free(rsa);
+        BN_free(bn);
+        return false;
+    }
+
+    // Get the public key data
+    char* publicKeyData;
+    long publicKeyLen = BIO_get_mem_data(publicBio, &publicKeyData);
+
     QFile publicKeyFile(publicKeyFilename);
     if (!publicKeyFile.open(QIODevice::WriteOnly)) {
+        BIO_free(publicBio);
+        RSA_free(rsa);
+        BN_free(bn);
         return false;
     }
 
-    // Convert file descriptor to FILE* for public key
-    FILE* publicKeyFileHandle = fdopen(publicKeyFile.handle(), "wb");
-    if (publicKeyFileHandle == nullptr) {
+    if (publicKeyFile.write(publicKeyData, publicKeyLen) != publicKeyLen) {
         publicKeyFile.close();
+        BIO_free(publicBio);
+        RSA_free(rsa);
+        BN_free(bn);
         return false;
     }
 
-    // Write the public key to the file
-    if (PEM_write_RSA_PUBKEY(publicKeyFileHandle, rsa) != 1) {
-        fclose(publicKeyFileHandle);
-        publicKeyFile.close();
-        return false;
-    }
-
-    fclose(publicKeyFileHandle);
     publicKeyFile.close();
+    BIO_free(publicBio);
     emit public_secret_key_path(publicKeyFilename);
 
+    // Clean up
     RSA_free(rsa);
     BN_free(bn);
     return true;
@@ -283,14 +325,24 @@ void miyao::on_pushButton_genrate_public_clicked()
 {
     QString privateFilePath = ui->lineEdit_choose_public->text();
 
+    if (privateFilePath.isEmpty()) {
+        QMessageBox::warning(this, "警告", "请选择私钥文件");
+        return;
+    }
+
     RSA* privateFile = this->loadPrivateKey(privateFilePath);
+    if (!privateFile) {
+        QMessageBox::critical(this, "错误", "无法加载私钥文件");
+        return;
+    }
+
     QFileInfo fileInfo(privateFilePath);
     QString pathWithoutFileName = fileInfo.path();
-    if(this->generatePublicKey(privateFile,pathWithoutFileName))
+    if(this->generatePublicKey(privateFile, pathWithoutFileName))
     {
-
+        RSA_free(privateFile);
         QMessageBox::StandardButton reply_success;
-        reply_success = QMessageBox::question(this, "打开", "密钥对生成成功,是否打开目录",
+        reply_success = QMessageBox::question(this, "打开", "公钥生成成功，是否打开目录",
                                               QMessageBox::Yes | QMessageBox::No);
         if(reply_success == QMessageBox::Yes)
         {
@@ -299,8 +351,9 @@ void miyao::on_pushButton_genrate_public_clicked()
         }
 
     } else {
+        RSA_free(privateFile);
         // 公钥生成失败，显示错误消息
-        QMessageBox::critical(this, "Error", "Failed to generate public key.");
+        QMessageBox::critical(this, "错误", "公钥生成失败");
     }
 
 
