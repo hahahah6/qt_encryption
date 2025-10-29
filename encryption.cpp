@@ -67,29 +67,35 @@ void jiami::on_pushButton_file_clicked()
 }
 
 RSA* jiami::loadPublicKey(const QString &path) {
-    qDebug() << path;  // 打印路径，确保路径正确
+    qDebug() << "Loading public key from:" << path;
     QString correctedPath = QDir::toNativeSeparators(path);
-    qDebug() << correctedPath;  // 打印纠正后的路径
 
-    QFile file(correctedPath);  // 使用 QFile 打开文件
+    QFile file(correctedPath);
     if (!file.open(QIODevice::ReadOnly)) {
-        qDebug() << "Failed to open public key file.";
+        qDebug() << "Failed to open public key file:" << correctedPath;
         return nullptr;
     }
 
-    // 使用 fdopen 将文件描述符转换为 FILE* 类型
-    FILE* filePointer = fdopen(file.handle(), "r");
-    if (filePointer == nullptr) {
-        qDebug() << "Failed to convert file handle to FILE*";
+    QByteArray keyData = file.readAll();
+    file.close();
+
+    if (keyData.isEmpty()) {
+        qDebug() << "Public key file is empty";
         return nullptr;
     }
 
-    // 读取公钥
-    RSA* rsa = PEM_read_RSA_PUBKEY(filePointer, nullptr, nullptr, nullptr);
-    fclose(filePointer);  // 记得关闭文件
+    // Use BIO to read key from memory buffer
+    BIO* bio = BIO_new_mem_buf(keyData.constData(), keyData.size());
+    if (!bio) {
+        qDebug() << "Failed to create BIO for public key";
+        return nullptr;
+    }
+
+    RSA* rsa = PEM_read_bio_RSA_PUBKEY(bio, nullptr, nullptr, nullptr);
+    BIO_free(bio);
 
     if (rsa == nullptr) {
-        qDebug() << "Failed to load public key.";
+        qDebug() << "Failed to parse public key from file";
         return nullptr;
     }
 

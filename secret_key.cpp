@@ -138,63 +138,85 @@ bool miyao::createRSA(const int num, const QString &folderPath) {
 
     // 保存私钥
     QString privateKeyFilename = folderPath + "/private.pem";
+    
+    // Use BIO to write private key to memory
+    BIO* privateBio = BIO_new(BIO_s_mem());
+    if (!privateBio) {
+        RSA_free(rsa);
+        BN_free(bn);
+        return false;
+    }
+
+    if (PEM_write_bio_RSAPrivateKey(privateBio, rsa, nullptr, nullptr, 0, nullptr, nullptr) != 1) {
+        BIO_free(privateBio);
+        RSA_free(rsa);
+        BN_free(bn);
+        return false;
+    }
+
+    // Get the private key data
+    char* privateKeyData;
+    long privateKeyLen = BIO_get_mem_data(privateBio, &privateKeyData);
+
     QFile privateKeyFile(privateKeyFilename);
     if (!privateKeyFile.open(QIODevice::WriteOnly)) {
+        BIO_free(privateBio);
         RSA_free(rsa);
         BN_free(bn);
         return false;
     }
 
-    // Convert file descriptor to FILE* using fdopen
-    FILE* privateKeyFileHandle = fdopen(privateKeyFile.handle(), "wb");
-    if (privateKeyFileHandle == nullptr) {
+    if (privateKeyFile.write(privateKeyData, privateKeyLen) != privateKeyLen) {
         privateKeyFile.close();
+        BIO_free(privateBio);
         RSA_free(rsa);
         BN_free(bn);
         return false;
     }
 
-    // Write the private key to the file
-    if (PEM_write_RSAPrivateKey(privateKeyFileHandle, rsa, nullptr, nullptr, 0, nullptr, nullptr) != 1) {
-        fclose(privateKeyFileHandle);
-        privateKeyFile.close();
-        RSA_free(rsa);
-        BN_free(bn);
-        return false;
-    }
-
-    fclose(privateKeyFileHandle);
     privateKeyFile.close();
+    BIO_free(privateBio);
     emit private_secret_key_path(privateKeyFilename);
     // 保存公钥
     QString publicKeyFilename = folderPath + "/public.pem";
+
+    // Use BIO to write public key to memory
+    BIO* publicBio = BIO_new(BIO_s_mem());
+    if (!publicBio) {
+        RSA_free(rsa);
+        BN_free(bn);
+        return false;
+    }
+
+    if (PEM_write_bio_RSA_PUBKEY(publicBio, rsa) != 1) {
+        BIO_free(publicBio);
+        RSA_free(rsa);
+        BN_free(bn);
+        return false;
+    }
+
+    // Get the public key data
+    char* publicKeyData;
+    long publicKeyLen = BIO_get_mem_data(publicBio, &publicKeyData);
+
     QFile publicKeyFile(publicKeyFilename);
     if (!publicKeyFile.open(QIODevice::WriteOnly)) {
+        BIO_free(publicBio);
         RSA_free(rsa);
         BN_free(bn);
         return false;
     }
 
-    // Convert file descriptor to FILE* for public key
-    FILE* publicKeyFileHandle = fdopen(publicKeyFile.handle(), "wb");
-    if (publicKeyFileHandle == nullptr) {
+    if (publicKeyFile.write(publicKeyData, publicKeyLen) != publicKeyLen) {
         publicKeyFile.close();
+        BIO_free(publicBio);
         RSA_free(rsa);
         BN_free(bn);
         return false;
     }
 
-    // Write the public key to the file
-    if (PEM_write_RSA_PUBKEY(publicKeyFileHandle, rsa) != 1) {
-        fclose(publicKeyFileHandle);
-        publicKeyFile.close();
-        RSA_free(rsa);
-        BN_free(bn);
-        return false;
-    }
-
-    fclose(publicKeyFileHandle);
     publicKeyFile.close();
+    BIO_free(publicBio);
     emit public_secret_key_path(publicKeyFilename);
 
     // Clean up

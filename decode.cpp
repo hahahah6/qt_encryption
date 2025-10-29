@@ -27,27 +27,35 @@ decode::~decode()
 }
 // 加载私钥
 RSA* decode::loadPrivateKey(const QString &path) {
-    qDebug() << path;
+    qDebug() << "Loading private key from:" << path;
     QString correctedPath = QDir::toNativeSeparators(path);
-    qDebug() << correctedPath;
 
     QFile file(correctedPath);
     if (!file.open(QIODevice::ReadOnly)) {
-        qDebug() << "Failed to open private key file.";
+        qDebug() << "Failed to open private key file:" << correctedPath;
         return nullptr;
     }
 
-    FILE* filePointer = fdopen(file.handle(), "r");
-    if (filePointer == nullptr) {
-        qDebug() << "Failed to convert file handle to FILE*";
+    QByteArray keyData = file.readAll();
+    file.close();
+
+    if (keyData.isEmpty()) {
+        qDebug() << "Private key file is empty";
         return nullptr;
     }
 
-    RSA* rsa = PEM_read_RSAPrivateKey(filePointer, nullptr, nullptr, nullptr);
-    fclose(filePointer);
+    // Use BIO to read key from memory buffer
+    BIO* bio = BIO_new_mem_buf(keyData.constData(), keyData.size());
+    if (!bio) {
+        qDebug() << "Failed to create BIO for private key";
+        return nullptr;
+    }
+
+    RSA* rsa = PEM_read_bio_RSAPrivateKey(bio, nullptr, nullptr, nullptr);
+    BIO_free(bio);
 
     if (rsa == nullptr) {
-        qDebug() << "Failed to load private key.";
+        qDebug() << "Failed to parse private key from file";
         return nullptr;
     }
 
